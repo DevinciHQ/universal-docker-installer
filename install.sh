@@ -8,6 +8,8 @@ SHARE_FOLDER="~/docker-share"
 
 MACHINE_NAME="default"
 
+VERBOSE=true
+
 # Make a pseudo hashmap for legibility and because bash 3.x is the default on 
 # OSX and it doesn't support bash hash arrays.
 distro=0
@@ -110,8 +112,14 @@ cmd() {
   local OUTPUT=`${@:2}`
   if [ -z $? ]; then
     echo "success"
+    if [ $VERBOSE ]; then
+      echo "OUTPUT===> $OUTPUT"
+    fi
   else
     echo "fail"
+    if [ $VERBOSE ]; then
+      echo "OUTPUT===> $OUTPUT"
+    fi
     exit 1
   fi
 }
@@ -128,7 +136,7 @@ install_docker_engine() {
     printf "> Creating the shared folder at $SHARE_FOLDER .. ";  mkdir $SHARE_FOLDER && echo "success" || ( echo "fail"; exit 1)
   fi
 
-  if [ $OS{$distro} == "Darwin"]; then
+  if [ ${OS[$distro]} == "Darwin"]; then
     # Assume homebrew is a requirement for now
     if [ ! "$(which brew)" ]; then
       echo "Error: It looks like homebrew isn't installed. Please install that first."
@@ -155,12 +163,37 @@ install_docker_engine() {
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
     cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
 
-    cmd "Testing share folder" touch $SHARE_DIR
+    cmd "Testing share folder" 'touch $SHARE_DIR/test-file && docker-machine ssh default ls /Users/$USER/$SHARE_DIR/test-file'
   fi
 
+  if [ ${OS[$distro]} == "Ubuntu"]; then
+    cmd "Adding virtualbox to apt sources" 'echo "deb http://download.virtualbox.org/virtualbox/debian ${OS[$codename]} contrib" > /etc/apt/sources.list.d/virtualbox.list && wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo apt-key add - && sudo apt-get update'
+    cmd "Installing virtualbox" sudo apt-get install virtualbox-5.0
 
+    cmd "Adding docker to apt sources" 'apt-get install apt-transport-https ca-certificates && sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && echo "deb https://apt.dockerproject.org/repo ubuntu-${OS[$codename]} main" > /etc/apt/sources.list.d/docker.list && apt-get update'
 
+    cmd "Remove legacy lxc-docker if it exists" sudo apt-get purge lxc-docker
+    cmd "Install linux-image-extra" sudo apt-get install linux-image-extra-$(uname -r)
+    if [[ ${OS[$release]} == "12"* ||  ${OS[$release]} == "14"* ]]; then
+      cmd "Install apparmor on Ubunu 12.04 or 14.04" sudo apt-get install apparmor
+    fi
+    
+    cmd "Installing docker-engine" sudo apt-get install docker-engine
+    cmd "Installing docker-machine" 'curl -s https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` | sudo tee /usr/local/bin/docker-machine > /dev/null && sudo chmod +x /usr/local/bin/docker-machine'
+    cmd "Installing docker-compose" 'curl -s https://github.com/docker/compose/releases/download/1.6.0/docker-compose-`uname -s`-`uname -m` | sudo tee /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose'
+    cmd "Installing docker-machine-nfs" '
+      curl -s https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh |
+      sudo tee /usr/local/bin/docker-machine-nfs > /dev/null && sudo chmod +x /usr/local/bin/docker-machine-nfs'
+    
+    
+    cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
+    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME
+    cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
+    cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
+    cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
 
+    cmd "Testing share folder" 'touch $SHARE_DIR/test-file && docker-machine ssh default ls /Users/$USER/$SHARE_DIR/test-file'
+  fi
 
 }
 
@@ -169,4 +202,4 @@ install_docker_engine() {
 show_help
 get_os
 get_rc_file
-cmd "this is a test" false
+install_docker_engine

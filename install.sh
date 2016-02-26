@@ -204,12 +204,12 @@ install_docker_engine() {
       sudo wget -q https://raw.githubusercontent.com/devinci-code/docker-machine-nfs/dev-50-support-linux/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs'
     
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
-    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='\(rw,sync,no_root_squash,no_subtree_check\)' --shared-folder=$SHARE_DIR --force
-    cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
+    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='\(rw,sync,no_root_squash,no_subtree_check\)' --shared-folder=$SHARE_FOLDER --force
+    #cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
     cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
 
-    cmd "Testing share folder" 'touch $SHARE_DIR/test-file && docker-machine ssh default ls $SHARE_DIR/test-file'
+    cmd "Testing share folder" 'touch $SHARE_FOLDER/test-file && docker-machine ssh default ls $SHARE_FOLDER/test-file'
   fi
 
 }

@@ -214,7 +214,7 @@ install_docker_engine() {
       cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
     fi
 
-    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME
+    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --shared-folder=$SHARE_FOLDER --force
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
     cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
 

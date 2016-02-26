@@ -18,14 +18,20 @@ MACHINE_MD5_DARWIN_64=3397d428b7d9673356f76c64ebcc45ad
 COMPOSE_MD5_DARWIN_64=c8d5f45274edac7922f917289e9d8081
 DOCKER_MD5_DARWIN_64=70759355ba9bec36f3c13e5072e2903d
 
-# Make a pseudo hashmap for legibility and because bash 3.x is the default on 
+MACHINE_VER=0.6.0
+COMPOSE_VER=1.6.0
+DOCKER_VER=1.10.1
+B2D_VER=1.10.2
+VBOX_VER=5.0.14
+
+# Make a pseudo hashmap for legibility and because bash 3.x is the default on
 # OSX and it doesn't support bash hash arrays.
 distro=0
 release=1
 codename=2
 arch=3
 kernal=4
-OS=([$distro]="" [$release]="" [$codename]="" [$arch]="") 
+OS=([$distro]="" [$release]="" [$codename]="" [$arch]="" [$kernal]="")
 
 
 show_help () {
@@ -36,13 +42,13 @@ UNIVERSAL DOCKER INSTALLER
 version: $VERSION
 
 Installs the docker suite of tools:
-  - docker-engine (docker)
-  - docker-machine
-  - docker-compose
+  - docker-engine (docker) - version: $DOCKER_VER
+  - docker-machine - version: $MACHINE_VER
+  - docker-compose - version: $COMPOSE_VER
 
 .. and dependencies
-  - Virtualbox
-  - docker-machine-nfs (speeds up docker-machine shares with nfs)
+  - vitualbox - version: $VBOX_VER
+  - docker-machine-nfs (speeds up docker-machine shares with nfs) - version: Rolling
 
 OSX
 =====
@@ -54,7 +60,7 @@ OSX
 Linux (Defaults)
 ===============
   - Installs virtualbox via package manager when possible
-  - Installs docker-engine via package manager when possible 
+  - Installs docker-engine via package manager when possible
   - Installs docker-machine binary via curl. See https://docs.docker.com/machine/install-machine/
   - Installs docker-compose via curl.
 
@@ -62,7 +68,7 @@ Linux (Defaults)
 Ubuntu
 -------
   - Installs virtualbox (if not exists) through apt-get by adding virtualbox to apt sources.
-  - Installs docker-engine through apt-get by adding docker to apt sources. 
+  - Installs docker-engine through apt-get by adding docker to apt sources.
 
 ArchLinux
 ---------
@@ -78,11 +84,11 @@ get_os() {
     echo "WINDOWS NOT SUPPORTED YET"
     exit 1
   fi
-  
+
   UNAME=$(uname)
-  
+
   # We're on OSX
-  if [ $UNAME == "Darwin" ]; then    
+  if [ $UNAME == "Darwin" ]; then
     OS[$distro]="OSX"
     OS[$release]="$(sw_vers -productVersion || false)"
     # Not worth mapping OSX codenames I think and there isn't an easy cli command
@@ -99,7 +105,7 @@ get_os() {
     OS[$codename]="$(lsb_release --codename -s || false)"
     OS[$arch]="$(uname -m)"
     OS[$kernal]="$(uname -r)"
-  
+
   else
     echo "This OS isn't supported yet"
     exit 1
@@ -117,7 +123,12 @@ get_rc_file() {
 }
 
 checksum() {
-  echo $1 $2 | md5sum -c -
+  if [ ${OS[$distro]} == "OSX" ]; then
+    md5=($(md5 -r $2))
+    test $md5 == $1
+  else
+    echo $1 $2 | md5sum -c -
+  fi
 }
 
 
@@ -129,7 +140,7 @@ cmd() {
   printf "> $1 .. "
   OUTPUT=`eval ${@:2}`
   result=$?
-  
+
   if [ $result -eq 0 ]; then
     echo "success"
     if [ $VERBOSE ]; then
@@ -150,41 +161,64 @@ install_docker_engine() {
 
   # Use a specific shared folder instead of just /Users or /home so that nfs mounts don't conflict.
   # This is most important when running other vitualbox instances setup with nfs.
-  if [ -d "$SHARE_FOLDER" ]; then 
-    echo "Error: The share folder, '$SHARE_FOLDER' already exists. Please backup your data and remove the folder if you want to start over."
-    exit 1
-  else
-    cmd "Creating the shared folder at $SHARE_FOLDER" mkdir $SHARE_FOLDER
+  cmd "Creating the shared folder at $SHARE_FOLDER if one doens't exist" mkdir -p $SHARE_FOLDER
+
+  if [ "$(grep -E 'User|home' /etc/exports)" ]; then
+    echo "Notice: Your /etc/exports folder contians entries that might cause conflicts with the NFS setup."
+    cmd "Backing up your /etc/exports and replacing with a blank file." "sudo mv /etc/exports /etc/exports.backup && sudo touch /etc/exports"
   fi
 
-  if [ ${OS[$distro]} == "Darwin" ]; then
+  if [ ${OS[$distro]} == "OSX" ]; then
+    echo "STARTING INSTALLATION FOR OSX"
+
     # Assume homebrew is a requirement for now
     if [ ! "$(which brew)" ]; then
       echo "Error: It looks like homebrew isn't installed. Please install that first."
       exit 1
     fi
     cmd "Updating Homebrew" brew update
-    
-    if [ -z "$(brew cask update)" ]; then
+
+    if [ ! "$(brew cask)" ]; then
       echo "Error: It looks like homebrew cask isn't installed. As of Dec 2015, it should come with homebrew. Try 'brew update'"
+      exit 1;
     fi
 
-    cmd "Installing the latest virtualbox" brew update
-    cmd "Installing docker-engine" brew install docker
-    cmd "Installing docker-machine" brew install docker-machine
-    cmd "Installing docker-machine" brew install docker-machine
+    if [ "$(which vboxmanage)" ]; then
+      echo "Notice: VirtualBox is already installed."
+      curr_version=$(vboxmanage --version)
+      if [[ $curr_version != $VBOX_VER* ]]; then
+        running_vms=$(vboxmanage list runningvms)
+        if [ "$running_vms" ]; then
+          echo "Error: You still have some virtualbox / docker machines running. Please disable them and run this script again."
+          echo "Running VMS: $running_vms"
+          exit 1
+        fi
+        cmd "Installing the latest virtualbox" brew cask install virtualbox
+      fi
+    fi
+
+    cmd "Installing docker-engine" 'checksum $DOCKER_MD5_DARWIN_64 /usr/local/bin/docker || brew install docker && checksum $DOCKER_MD5_DARWIN_64 /usr/local/bin/docker'
+    cmd "Installing docker-machine" 'checksum $MACHINE_MD5_DARWIN_64 /usr/local/bin/docker-machine || brew install docker-machine && checksum $MACHINE_MD5_DARWIN_64 /usr/local/bin/docker-machine'
+    cmd "Installing docker-compose" 'checksum $COMPOSE_MD5_DARWIN_64 /usr/local/bin/docker-compose || brew install docker-compose && checksum $COMPOSE_MD5_DARWIN_64 /usr/local/bin/docker-compose'
     cmd "Installing docker-machine-nfs" '
       curl -s https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh |
       sudo tee /usr/local/bin/docker-machine-nfs > /dev/null && sudo chmod +x /usr/local/bin/docker-machine-nfs'
-    
-    
-    cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
+
+    if [ "$(docker-machine ls --filter name=default -q)" ]; then
+      echo "Notice: The 'default docker-machine already exists."
+      if [ ! $(docker-machine ls --filter name=default --filter state=running -q) ]; then
+         cmd "Starting default machine so we can test it's version" docker-machine start default
+      fi
+      cmd "Checking if version is $B2D_VER. If it's not please backup your data and update it using 'docker-machine upgrade default'" test $(docker-machine version default) == $B2D_VER
+    else
+      cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
+    fi
+
     cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME
-    cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
     cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
 
-    cmd "Testing share folder" 'touch $SHARE_DIR/test-file && docker-machine ssh default ls /Users/$USER/$SHARE_DIR/test-file'
+    cmd "Testing share folder" 'touch $SHARE_FOLDER/test-file && docker-machine ssh default ls $SHARE_FOLDER/test-file'
   fi
 
   if [ ${OS[$distro]} == "Ubuntu" ]; then
@@ -198,7 +232,7 @@ install_docker_engine() {
     if [[ ${OS[$release]} == "12"* ||  ${OS[$release]} == "14"* ]]; then
       cmd "Install apparmor on Ubunu 12.04 or 14.04" sudo apt-get install apparmor
     fi
-    
+
     cmd "Installing docker-engine" 'checksum $DOCKER_MD5_LINUX_64 /usr/bin/docker || sudo apt-get install docker-engine && checksum $DOCKER_MD5_LINUX_64 /usr/bin/docker'
     cmd "Installing docker-machine" 'checksum $MACHINE_MD5_LINUX_64 /usr/local/bin/docker-machine || sudo wget -q https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` -O /usr/local/bin/docker-machine && sudo chmod 755 /usr/local/bin/docker-machine && checksum $MACHINE_MD5_LINUX_64 /usr/local/bin/docker-machine'
     cmd "Installing docker-compose" 'checksum $COMPOSE_MD5_LINUX_64 /usr/local/bin/docker-compose || sudo wget -q https://github.com/docker/compose/releases/download/1.6.0/docker-compose-`uname -s`-`uname -m` -O /usr/local/bin/docker-compose && sudo chmod 755 /usr/local/bin/docker-compose &&  checksum $COMPOSE_MD5_LINUX_64 /usr/local/bin/docker-compose'
@@ -206,12 +240,12 @@ install_docker_engine() {
     # See https://github.com/adlogix/docker-machine-nfs/pull/51
     cmd "Installing docker-machine-nfs (custom version)" '
       sudo wget -q https://raw.githubusercontent.com/devinci-code/docker-machine-nfs/dev-50-support-linux/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs'
-    
+
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
     cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='\(rw,sync,no_root_squash,no_subtree_check\)' --shared-folder=$SHARE_FOLDER --force
     #cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
+    cmd "Sourcing docker variables in '$RC_FILE'" source $RC_FILE
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
-    cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
 
     cmd "Testing share folder" 'touch $SHARE_FOLDER/test-file && docker-machine ssh default ls $SHARE_FOLDER/test-file'
   fi

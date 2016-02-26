@@ -14,6 +14,10 @@ MACHINE_MD5_LINUX_64=5558e5d7d003d337eacdc534c505dc5d
 COMPOSE_MD5_LINUX_64=cb7f2d7f1a45bcff83cfd4669b1dcf53
 DOCKER_MD5_LINUX_64=4583697764e695dd6d7f68d2834b5443
 
+MACHINE_MD5_DARWIN_64=3397d428b7d9673356f76c64ebcc45ad
+COMPOSE_MD5_DARWIN_64=c8d5f45274edac7922f917289e9d8081
+DOCKER_MD5_DARWIN_64=70759355ba9bec36f3c13e5072e2903d
+
 # Make a pseudo hashmap for legibility and because bash 3.x is the default on 
 # OSX and it doesn't support bash hash arrays.
 distro=0

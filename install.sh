@@ -212,7 +212,7 @@ install_docker_engine() {
     if [ `pacman -Q yaourt 2> /dev/null|wc -l` -lt 1 ]
     then
       echo "Error: Yaourt is required to install docker-machine. Aborting installation."
-      exit
+      exit 1
     fi
     if [ `pacman -Q virtualbox docker docker-machine 2> /dev/null|wc -l` -gt 0 ]
     then
@@ -222,13 +222,9 @@ install_docker_engine() {
     if [ `lsmod|cut -d ' ' -f1|grep -E '(vboxdrv|vboxpci|vboxnetflt|vboxnetadp)'|wc -l` -gt 0 ]
     then
       echo "Error: Existing Virtualbox kernel modules detected. Skipping Virtualbox module loading and enabling modules on system startup."
-      exit
     else
-      cmd "Loading Virtualbox modules" sudo modprobe vboxnetadp vboxnetflt vboxpci vboxdrv
-      cmd "Enabling Virtualbox modules on system startup: /etc/modules-load.d/virtualbox.conf" sudo sh -c 'echo "vboxnetadp
-        vboxnetflt
-        vboxpci
-        vboxdrv" > /etc/modules-load.d/virtualbox.conf'
+      cmd "Setting up Virtualbox modules" sudo /sbin/rcvboxdrv setup
+      cmd "Enabling Virtualbox modules on system startup: /etc/modules-load.d/virtualbox.conf" 'sudo sh -c "echo -e \"vboxnetadp\nvboxnetflt\nvboxpci\nvboxdrv\" > /etc/modules-load.d/virtualbox.conf"'
     fi
     cmd "Installing docker" yaourt -S docker docker-compose docker-machine
 
@@ -238,11 +234,10 @@ install_docker_engine() {
 
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
     # TODO: setup the default machine with nfs
-    cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
-    cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep -v "^#" >> $RC_FILE'
-    cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
-
-    cmd "Testing share folder" 'touch $SHARE_DIR/test-file && docker-machine ssh default ls $SHARE_DIR/test-file'
+    DEFAULT_SOURCE="$HOME/.default.docker-machine"
+    cmd "Adding machine environment variables to $DEFAULT_SOURCE" 'docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE'
+    cmd "Sourcing variables in $DEFAULT_SOURCE" source $DEFAULT_SOURCE
+    cmd "Sourcing $DEFAULT_SOURCE in $RC_FILE" 'echo "source $DEFAULT_SOURCE" >> $RC_FILE'
   fi
 }
 

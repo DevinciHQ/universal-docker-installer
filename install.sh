@@ -201,7 +201,7 @@ install_docker_engine() {
       sudo wget -q https://raw.githubusercontent.com/devinci-code/docker-machine-nfs/dev-50-support-linux/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs'
 
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
-    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='\(rw,sync,no_root_squash,no_subtree_check\)' --shared-folder=$SHARE_DIR --force
+    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='\(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check\)' --shared-folder=$SHARE_FOLDER --force
     cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
     cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
@@ -214,26 +214,29 @@ install_docker_engine() {
       echo "Error: Yaourt is required to install docker-machine. Aborting installation."
       exit 1
     fi
+
     if [ `pacman -Q virtualbox docker docker-machine 2> /dev/null|wc -l` -gt 0 ]
     then
       echo "Error: Existing Virtualbox and/or Docker installation detected. Reinstalling Virtualbox, docker and docker-machine."
     fi
     cmd " Installing virtualbox" yaourt -S virtualbox virtualbox-guest-dkms virtualbox-guest-iso virtualbox-guest-modules virtualbox-guest-utils virtualbox-host-dkms virtualbox-host-modules
-    if [ `lsmod|cut -d ' ' -f1|grep -E '(vboxdrv|vboxpci|vboxnetflt|vboxnetadp)'|wc -l` -gt 0 ]
-    then
-      echo "Error: Existing Virtualbox kernel modules detected. Skipping Virtualbox module loading and enabling modules on system startup."
-    else
-      cmd "Setting up Virtualbox modules" sudo /sbin/rcvboxdrv setup
-      cmd "Enabling Virtualbox modules on system startup: /etc/modules-load.d/virtualbox.conf" 'sudo sh -c "echo -e \"vboxnetadp\nvboxnetflt\nvboxpci\nvboxdrv\" > /etc/modules-load.d/virtualbox.conf"'
-    fi
+    cmd "Setting up Virtualbox modules" sudo /sbin/rcvboxdrv setup
+    cmd "Enabling Virtualbox modules on system startup: /etc/modules-load.d/virtualbox.conf" 'sudo sh -c "echo -e \"vboxnetadp\nvboxnetflt\nvboxpci\nvboxdrv\" > /etc/modules-load.d/virtualbox.conf"'
+
     cmd "Installing docker" yaourt -S docker docker-compose docker-machine
 
     # Note that we needed to modify the docker-machine-nfs script to work with linux. So load the custom version.
     # See https://github.com/adlogix/docker-machine-nfs/pull/51
-    # TODO: add nfs support
+    cmd "Installing docker-machine-nfs (custom version)" 'sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/arch-linux-support/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs'
+    cmd "Installing NTP service" yaourt -S ntp
+    cmd "Starting NTP service" sudo systemctl start ntpd.service
+    cmd "Enabling NTP service on system startup" sudo systemctl enable ntpd.service
+    cmd "Installing NFS utils" yaourt -S nfs-utils
+    cmd "Starting NFS service" sudo systemctl start nfs-server.service
+    cmd "Enabling NFS service on system startup" sudo systemctl enable nfs-server.service
 
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
-    # TODO: setup the default machine with nfs
+    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)' --shared-folder=$SHARE_FOLDER --force
     DEFAULT_SOURCE="$HOME/.default.docker-machine"
     cmd "Adding machine environment variables to $DEFAULT_SOURCE" 'docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE'
     cmd "Sourcing variables in $DEFAULT_SOURCE" source $DEFAULT_SOURCE

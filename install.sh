@@ -200,8 +200,10 @@ install_docker_engine() {
     cmd "Installing docker-machine-nfs (custom version)" '
       sudo wget -q https://raw.githubusercontent.com/devinci-code/docker-machine-nfs/dev-50-support-linux/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs'
 
+    cmd "Installing Perl digest hmac" sudo apt-get install libdigest-hmac-perl -y
+
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
-    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='\(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check\)' --shared-folder=$SHARE_FOLDER --force
+    cmd "Setting up the default docker-machine with NFS" 'docker-machine-nfs $MACHINE_NAME --nfs-config="(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)"' --shared-folder=$SHARE_FOLDER --force
     cmd "Starting docker-machine '$MACHINE_NAME'" docker-machine start $MACHINE_NAME
     cmd "Adding machine environment variables to $RC_FILE" 'docker-machine env $MACHINE_NAME | grep export >> $RC_FILE'
     cmd "Sourcing variables in '$RC_FILE'" source $RC_FILE
@@ -228,15 +230,16 @@ install_docker_engine() {
     # Note that we needed to modify the docker-machine-nfs script to work with linux. So load the custom version.
     # See https://github.com/adlogix/docker-machine-nfs/pull/51
     cmd "Installing docker-machine-nfs (custom version)" 'sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/arch-linux-support/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs'
-    cmd "Installing NTP service" yaourt -S ntp
+    cmd "Installing NTP and NFS services" yaourt -S ntp nfs-utils
     cmd "Starting NTP service" sudo systemctl start ntpd.service
     cmd "Enabling NTP service on system startup" sudo systemctl enable ntpd.service
-    cmd "Installing NFS utils" yaourt -S nfs-utils
     cmd "Starting NFS service" sudo systemctl start nfs-server.service
     cmd "Enabling NFS service on system startup" sudo systemctl enable nfs-server.service
 
+    cmd "Installing Perl digest hmac" yaourt -S perl-digest-hmac
+
     cmd "Creating a default docker-machine" docker-machine create --driver virtualbox $MACHINE_NAME
-    cmd "Setting up the default docker-machine with NFS" docker-machine-nfs $MACHINE_NAME --nfs-config='(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)' --shared-folder=$SHARE_FOLDER --force
+    cmd "Setting up the default docker-machine with NFS" 'docker-machine-nfs $MACHINE_NAME --nfs-config="(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)" --shared-folder=$SHARE_FOLDER --force'
     DEFAULT_SOURCE="$HOME/.default.docker-machine"
     cmd "Adding machine environment variables to $DEFAULT_SOURCE" 'docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE'
     cmd "Sourcing variables in $DEFAULT_SOURCE" source $DEFAULT_SOURCE

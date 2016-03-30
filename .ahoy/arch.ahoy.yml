@@ -1,0 +1,46 @@
+ahoyapi: v1
+version: 0.0.0
+commands:
+  setup:
+    usage: Setup the Arch Linux development environment
+    cmd: |
+      ahoy arch virtualbox
+      ahoy arch docker
+      ahoy arch nfs
+      ahoy arch deps
+      ahoy arch machine
+  virtualbox:
+    usage: Install Virtualbox
+    cmd: |
+      yaourt -S virtualbox virtualbox-guest-dkms virtualbox-guest-iso virtualbox-guest-utils virtualbox-host-dkms
+      sudo /sbin/rcvboxdrv setup
+      sudo sh -c "echo -e \"vboxnetadp\nvboxnetflt\nvboxpci\nvboxdrv\" > /etc/modules-load.d/virtualbox.conf"
+  docker:
+    usage: Install Docker
+    cmd: |
+      yaourt -S docker docker-compose docker-machine
+  nfs:
+    usage: Install NFS
+    cmd: |
+      sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/arch-linux-support/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs
+      yaourt -S ntp nfs-utils
+      sudo systemctl start ntpd.service
+      sudo systemctl enable ntpd.service
+      sudo systemctl start nfs-server.service
+      sudo systemctl enable nfs-server.service
+  deps:
+    usage: Install dependencies
+    cmd: |
+      yaourt -S perl-digest-hmac
+  machine:
+    usage: Create the "default" Docker machine
+    cmd: |
+      MACHINE_NAME=default
+      SHARE_FOLDER=$HOME/docker
+      RC_FILE=$HOME/.zshrc
+      docker-machine create --driver virtualbox $MACHINE_NAME
+      docker-machine-nfs $MACHINE_NAME --nfs-config="(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)" --shared-folder=$SHARE_FOLDER --force
+      DEFAULT_SOURCE="$HOME/.default.docker-machine"
+      docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
+      source $DEFAULT_SOURCE
+      echo "source $DEFAULT_SOURCE" >> $RC_FILE

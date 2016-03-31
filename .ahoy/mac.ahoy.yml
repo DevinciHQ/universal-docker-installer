@@ -1,0 +1,89 @@
+ahoyapi: v1
+version: 0.0.0
+commands:
+
+  setup:
+    usage: Setup the Arch Linux development environment
+    cmd: |
+      set -e
+
+      ahoy arch deps
+      ahoy arch virtualbox
+      ahoy arch docker
+      ahoy arch nfs
+      ahoy arch machine
+
+  deps:
+    usage: Install dependencies
+    cmd: |
+      echo; echo "*** Dependencies Setup ***"; echo
+      set -e
+
+      # Assume homebrew is a requirement for now
+      if [ ! "$(which brew)" ]; then
+        echo "[Error] It looks like homebrew isn't installed. Please install that first."
+        exit 1
+      fi
+
+      echo "*** Updating Homebrew..."
+      brew update
+
+      if [ -z "$(brew cask update)" ]; then
+        echo "[Error] It looks like homebrew cask isn't installed. As of Dec 2015, it should come with homebrew. Try 'brew update'"
+      fi
+
+  virtualbox:
+    usage: Install Virtualbox
+    cmd: |
+      echo; echo "*** Virtualbox Setup ***"; echo
+      set -e
+
+      echo "Installing the latest virtualbox"
+      brew update
+
+  docker:
+    usage: Install Docker
+    cmd: |
+      echo; echo "*** Docker Setup ***"; echo
+      set -e
+
+      echo "*** Installing docker-engine..."
+      brew install docker
+
+      echo "*** Installing docker-machine..."
+      brew install docker-machine
+
+      echo "*** Installing docker-machine..."
+      brew install docker-machine
+
+  nfs:
+    usage: Install NFS
+    cmd: |
+      echo; echo "*** NFS Setup ***"; echo
+      set -e
+
+      echo "*** Installing docker-machine-nfs..."
+      curl -s https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh | sudo tee /usr/local/bin/docker-machine-nfs > /dev/null && sudo chmod +x /usr/local/bin/docker-machine-nfs
+
+  machine:
+    usage: Create the "default" Docker machine
+    cmd: |
+      echo; echo "*** Default Docker Machine Setup ***"; echo
+      set -e
+
+      MACHINE_NAME=default
+
+      echo "*** Creating a default docker-machine..."
+      docker-machine create --driver virtualbox $MACHINE_NAME
+
+      echo "*** Setting up the default docker-machine with NFS..."
+      docker-machine-nfs $MACHINE_NAME
+
+      echo "*** Starting docker-machine $MACHINE_NAME..."
+      docker-machine start $MACHINE_NAME
+
+      echo "*** Environment variables setup and sourcing for the default machine..."
+      DEFAULT_SOURCE="$HOME/.default.docker-machine"
+      docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
+      source $DEFAULT_SOURCE
+      echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)

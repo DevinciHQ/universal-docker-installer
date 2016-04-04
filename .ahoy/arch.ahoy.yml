@@ -19,6 +19,28 @@ commands:
       echo; echo "*** Dependencies Setup ***"; echo
       set -e
 
+      echo "*** Creating the docker share folder at: $HOME/docker ..."
+      share="$HOME/docker"
+      if [ -e "$share" ]; then
+        echo -n "[Warning] $share exits. Are you sure you want to remove $share ? (Y/n) "
+        confirm="?"
+        while [[ $confirm != "y" ]] && [[ $confirm != "n" ]] && [[ $confirm != "" ]]; do
+          read confirm
+          confirm=$(echo $confirm|tr '[:upper:]' '[:lower:]')
+        done
+        if [[ $confirm == "n" ]]; then
+          echo "[Continue] $share is untouched. Press Enter to continue the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+        else
+          echo "[Warning] $share will be removed. Press Enter to remove the folder and continue with the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+          rm -rf $share
+          mkdir $share
+        fi
+      else
+        mkdir $share
+      fi
+
       echo "*** Setting up perl-digest-hmac..."
       yaourt -S perl-digest-hmac
 
@@ -53,7 +75,7 @@ commands:
       set -e
 
       echo "*** Docker-machine-nfs setup..."
-      sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/arch-linux-support/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs
+      sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/civic-1817-fixing-linux-bugs/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs
 
       echo "*** NTP and NFS-utils setup..."
       yaourt -S ntp nfs-utils

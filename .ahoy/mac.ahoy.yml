@@ -7,11 +7,11 @@ commands:
     cmd: |
       set -e
 
-      ahoy arch deps
-      ahoy arch virtualbox
-      ahoy arch docker
-      ahoy arch nfs
-      ahoy arch machine
+      ahoy mac deps
+      ahoy mac virtualbox
+      ahoy mac docker
+      ahoy mac nfs
+      ahoy mac machine
 
   deps:
     usage: Install dependencies
@@ -53,8 +53,8 @@ commands:
       echo "*** Installing docker-machine..."
       brew install docker-machine
 
-      echo "*** Installing docker-machine..."
-      brew install docker-machine
+      echo "*** Installing docker-compose..."
+      brew install docker-compose
 
   nfs:
     usage: Install NFS
@@ -77,13 +77,17 @@ commands:
       docker-machine create --driver virtualbox $MACHINE_NAME
 
       echo "*** Setting up the default docker-machine with NFS..."
-      docker-machine-nfs $MACHINE_NAME
-
-      echo "*** Starting docker-machine $MACHINE_NAME..."
-      docker-machine start $MACHINE_NAME
+      docker-machine-nfs $MACHINE_NAME --shared-folder=$HOME/docker
 
       echo "*** Environment variables setup and sourcing for the default machine..."
       DEFAULT_SOURCE="$HOME/.default.docker-machine"
       docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
       source $DEFAULT_SOURCE
-      echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      if [ $(grep -E '(AHOY_CMD_PROXY="DOCKER"|AHOY_CMD_PROXY=DOCKER)' $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "export AHOY_CMD_PROXY=\"DOCKER\"" >> $(ahoy rcfile)
+      fi
+      if [ $(grep "source $DEFAULT_SOURCE" $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      fi
+      echo
+      echo "[DONE] Please open a new shell to ensure all new environment settings are sourced"

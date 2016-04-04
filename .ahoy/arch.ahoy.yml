@@ -82,4 +82,11 @@ commands:
       DEFAULT_SOURCE="$HOME/.default.docker-machine"
       docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
       source $DEFAULT_SOURCE
-      echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      if [ $(grep -E '(AHOY_CMD_PROXY="DOCKER"|AHOY_CMD_PROXY=DOCKER)' $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "export AHOY_CMD_PROXY=\"DOCKER\"" >> $(ahoy rcfile)
+      fi
+      if [ $(grep "source $DEFAULT_SOURCE" $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      fi
+      echo
+      echo "[DONE] Please open a new shell to ensure all new environment settings are sourced"

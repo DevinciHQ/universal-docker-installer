@@ -7,11 +7,11 @@ commands:
     cmd: |
       set -e
 
-      ahoy arch deps
-      ahoy arch virtualbox
-      ahoy arch docker
-      ahoy arch nfs
-      ahoy arch machine
+      ahoy debian deps
+      ahoy debian virtualbox
+      ahoy debian docker
+      ahoy debian nfs
+      ahoy debian machine
 
   deps:
     usage: Install dependencies
@@ -96,4 +96,11 @@ commands:
       DEFAULT_SOURCE="$HOME/.default.docker-machine"
       docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
       source $DEFAULT_SOURCE
-      echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      if [ $(grep -E '(AHOY_CMD_PROXY="DOCKER"|AHOY_CMD_PROXY=DOCKER)' $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "export AHOY_CMD_PROXY=\"DOCKER\"" >> $(ahoy rcfile)
+      fi
+      if [ $(grep "source $DEFAULT_SOURCE" $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      fi
+      echo
+      echo "[DONE] Please open a new shell to ensure all new environment settings are sourced"

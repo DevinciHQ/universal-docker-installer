@@ -51,7 +51,8 @@ commands:
       set -e
 
       echo "*** Adding virtualbox to apt sources..."
-      echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release --codename -s) contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list > /dev/null && wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo apt-key add - && sudo apt-get update
+      echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release --codename -s) contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list > /dev/null && wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo apt-key add -
+      sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/virtualbox.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
 
       echo "*** Virtualbox setup..."
       sudo apt-get install virtualbox-5.0
@@ -67,7 +68,8 @@ commands:
       DOCKER_MD5_LINUX_64=4583697764e695dd6d7f68d2834b5443
 
       echo "*** Adding docker to apt sources..."
-      sudo apt-get install apt-transport-https ca-certificates && sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && echo "deb https://apt.dockerproject.org/repo ubuntu-${OS[$codename]} main" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && sudo apt-get update
+      sudo apt-get install apt-transport-https ca-certificates && sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && echo "deb https://apt.dockerproject.org/repo ubuntu-$(lsb_release --codename -s) main" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/docker.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
 
       echo "*** Remove legacy lxc-docker if it exists..."
       sudo apt-get purge lxc-docker
@@ -81,7 +83,7 @@ commands:
       fi
 
       echo "*** Installing docker-engine..."
-      echo $DOCKER_MD5_LINUX_64 /usr/bin/docker | md5sum -c - || sudo apt-get install docker-engine && echo $DOCKER_MD5_LINUX_64 /usr/bin/docker | md5sum -c -
+      sudo apt-get install docker-engine
 
       echo "*** Installing docker-machine..."
       echo $MACHINE_MD5_LINUX_64 /usr/local/bin/docker-machine | md5sum -c - || sudo wget -q https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` -O /usr/local/bin/docker-machine && sudo chmod 755 /usr/local/bin/docker-machine && echo $MACHINE_MD5_LINUX_64 /usr/local/bin/docker-machine | md5sum -c -
@@ -94,6 +96,12 @@ commands:
     cmd: |
       echo; echo "*** NFS Setup ***"; echo
       set -e
+
+      echo "*** Installing NFS server..."
+      echo "[INFO] Selecting \"Install the packe maintainer's version\" is highly recommended for a fresh NFS server installation."
+      echo "Please make sure you read the previous INFO, then press Enter to proceed with the NFS server installation."
+      read
+      sudo apt-get install nfs-kernel-server
 
       # Note that we needed to modify the docker-machine-nfs script to work with linux. So load the custom version.
       # See https://github.com/adlogix/docker-machine-nfs/pull/51

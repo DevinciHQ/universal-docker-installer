@@ -1,0 +1,114 @@
+ahoyapi: v1
+version: 0.0.0
+commands:
+
+  setup:
+    usage: Setup the Arch Linux development environment
+    cmd: |
+      set -e
+
+      ahoy arch deps
+      ahoy arch virtualbox
+      ahoy arch docker
+      ahoy arch nfs
+      ahoy arch machine
+
+  deps:
+    usage: Install dependencies
+    cmd: |
+      echo; echo "*** Dependencies Setup ***"; echo
+      set -e
+
+      echo "*** Creating the docker share folder at: $HOME/docker ..."
+      share="$HOME/docker"
+      if [ -e "$share" ]; then
+        echo -n "[Warning] $share exits. Are you sure you want to remove $share ? (Y/n) "
+        confirm="?"
+        while [[ $confirm != "y" ]] && [[ $confirm != "n" ]] && [[ $confirm != "" ]]; do
+          read confirm
+          confirm=$(echo $confirm|tr '[:upper:]' '[:lower:]')
+        done
+        if [[ $confirm == "n" ]]; then
+          echo "[Continue] $share is untouched. Press Enter to continue the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+        else
+          echo "[Warning] $share will be removed. Press Enter to remove the folder and continue with the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+          rm -rf $share
+          mkdir $share
+        fi
+      else
+        mkdir $share
+      fi
+
+      echo "*** Setting up perl-digest-hmac..."
+      yaourt -S perl-digest-hmac
+
+  virtualbox:
+    usage: Install Virtualbox
+    cmd: |
+      echo; echo "*** Virtualbox Setup ***"; echo
+      set -e
+
+      echo "*** Virtualbox setup..."
+      yaourt -S virtualbox virtualbox-guest-dkms virtualbox-guest-iso virtualbox-guest-utils virtualbox-host-dkms
+
+      echo "*** Virtualbox drivers setup..."
+      sudo /sbin/rcvboxdrv setup
+
+      echo "*** Virtualbox kernel modules loading at system bootup..."
+      sudo sh -c "echo -e \"vboxnetadp\nvboxnetflt\nvboxpci\nvboxdrv\" > /etc/modules-load.d/virtualbox.conf"
+
+  docker:
+    usage: Install Docker
+    cmd: |
+      echo; echo "*** Docker Setup ***"; echo
+      set -e
+
+      echo "*** Docker, docker-compose and docker-machine setup..."
+      yaourt -S docker docker-compose docker-machine
+
+  nfs:
+    usage: Install NFS
+    cmd: |
+      echo; echo "*** NFS Setup ***"; echo
+      set -e
+
+      echo "*** Docker-machine-nfs setup..."
+      sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/civic-1817-fixing-linux-bugs/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs
+
+      echo "*** NTP and NFS-utils setup..."
+      yaourt -S ntp nfs-utils
+
+      echo "*** Starting and enabling bootup services for NTP daemon and NFS server..."
+      sudo systemctl start ntpd.service
+      sudo systemctl enable ntpd.service
+      sudo systemctl start nfs-server.service
+      sudo systemctl enable nfs-server.service
+
+  machine:
+    usage: Create the "default" Docker machine
+    cmd: |
+      echo; echo "*** Default Docker Machine Setup ***"; echo
+      set -e
+
+      MACHINE_NAME=default
+
+      echo "*** Creating the default docker machine using the virtualbox driver..."
+      docker-machine create --driver virtualbox $MACHINE_NAME
+
+      echo "*** Setting up docker machine nfs for the default machine..."
+      docker-machine-nfs $MACHINE_NAME --nfs-config="(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)" --shared-folder=$HOME/docker --force
+
+      echo "*** Environment variables setup and sourcing for the default machine..."
+      DEFAULT_SOURCE="$HOME/.default.docker-machine"
+      docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
+      source $DEFAULT_SOURCE
+      if [ $(grep -E '(AHOY_CMD_PROXY="DOCKER"|AHOY_CMD_PROXY=DOCKER)' $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "export AHOY_CMD_PROXY=\"DOCKER\"" >> $(ahoy rcfile)
+      fi
+      if [ $(grep "source $DEFAULT_SOURCE" $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      fi
+      echo
+      echo "[DONE] Please open a new shell to ensure all new environment settings are sourced"

@@ -1,0 +1,113 @@
+ahoyapi: v1
+version: 0.0.0
+commands:
+
+  help:
+    usage: Development environment setup help
+    cmd: |
+      echo 'For a full docker development environment setup use the following command:
+      ahoy setup
+
+      For a step by step setup use the following commands in order:
+      ahoy deps
+      ahoy virtualbox
+      ahoy docker
+      ahoy nfs
+      ahoy machine'
+
+  mac:
+    usage: Mac setup commands
+    import: .ahoy/mac.ahoy.yml
+
+  debian:
+    usage: Debian setup commands
+    import: .ahoy/debian.ahoy.yml
+
+  arch:
+    usage: Arch Linux setup commands
+    import: .ahoy/arch.ahoy.yml
+
+  os:
+    usage: Checks the Operating System
+    cmd: |
+      os=""
+      if [ "$(uname)" == "Darwin"  ]; then
+        os="mac"
+      elif [ "$(uname)" == "Linux" ]; then
+        if [ $(cat /etc/*release|grep -iE '(debian|ubuntu)'|wc -l) -gt 0 ]; then
+          os="debian"
+        elif [ $(cat /etc/*release|grep -iE '(arch)'|wc -l) -gt 0 ]; then
+          os="arch"
+        fi
+      fi
+      echo $os
+
+  shell:
+    usage: Prints the default shell
+    cmd: |
+      echo "$(echo $SHELL|rev|cut -d/ -f1|rev)"
+
+  rcfile:
+    usage: Prints the rcfile path of the default shell
+    cmd: |
+      echo "$HOME/.$(ahoy shell)rc"
+
+  setup:
+    usage: Setup the development environment
+    cmd: |
+      if [ "$(ahoy os)" != "" ]; then
+        ahoy $(ahoy os) setup {{args}}
+      else
+        echo "[Error] This OS is not supported."
+        exit 1
+      fi
+
+  deps:
+    usage: Install dependencies
+    cmd: |
+      if [ "$(ahoy os)" != "" ]; then
+        ahoy $(ahoy os) deps {{args}}
+      else
+        echo "[Error] This OS is not supported."
+        exit 1
+      fi
+
+  virtualbox:
+    usage: Install Virtualbox
+    cmd: |
+      if [ "$(ahoy os)" != "" ]; then
+        ahoy $(ahoy os) virtualbox {{args}}
+      else
+        echo "[Error] This OS is not supported."
+        exit 1
+      fi
+
+  docker:
+    usage: Install Docker
+    cmd: |
+      if [ "$(ahoy os)" != "" ]; then
+        ahoy $(ahoy os) docker {{args}}
+      else
+        echo "[Error] This OS is not supported."
+        exit 1
+      fi
+
+  nfs:
+    usage: Install NFS
+    cmd: |
+      if [ "$(ahoy os)" != "" ]; then
+        ahoy $(ahoy os) nfs {{args}}
+      else
+        echo "[Error] This OS is not supported."
+        exit 1
+      fi
+
+  machine:
+    usage: Create the "default" Docker machine
+    cmd: |
+      if [ "$(ahoy os)" != "" ]; then
+        ahoy $(ahoy os) machine {{args}}
+      else
+        echo "[Error] This OS is not supported."
+        exit 1
+      fi

@@ -1,0 +1,115 @@
+ahoyapi: v1
+version: 0.0.0
+commands:
+
+  setup:
+    usage: Setup the Arch Linux development environment
+    cmd: |
+      set -e
+
+      ahoy mac deps
+      ahoy mac virtualbox
+      ahoy mac docker
+      ahoy mac nfs
+      ahoy mac machine
+
+  deps:
+    usage: Install dependencies
+    cmd: |
+      echo; echo "*** Dependencies Setup ***"; echo
+      set -e
+
+      echo "*** Creating the docker share folder at: $HOME/docker ..."
+      share="$HOME/docker"
+      if [ -e "$share" ]; then
+        echo -n "[Warning] $share exits. Are you sure you want to remove $share ? (Y/n) "
+        confirm="?"
+        while [[ $confirm != "y" ]] && [[ $confirm != "n" ]] && [[ $confirm != "" ]]; do
+          read confirm
+          confirm=$(echo $confirm|tr '[:upper:]' '[:lower:]')
+        done
+        if [[ $confirm == "n" ]]; then
+          echo "[Continue] $share is untouched. Press Enter to continue the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+        else
+          echo "[Warning] $share will be removed. Press Enter to remove the folder and continue with the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+          rm -rf $share
+          mkdir $share
+        fi
+      else
+        mkdir $share
+      fi
+
+      # Assume homebrew is a requirement for now
+      if [ ! "$(which brew)" ]; then
+        echo "[Error] It looks like homebrew isn't installed. Please install that first."
+        exit 1
+      fi
+
+      echo "*** Updating Homebrew..."
+      brew update
+
+      if [ -z "$(brew cask update)" ]; then
+        echo "[Error] It looks like homebrew cask isn't installed. As of Dec 2015, it should come with homebrew. Try 'brew update'"
+      fi
+
+  virtualbox:
+    usage: Install Virtualbox
+    cmd: |
+      echo; echo "*** Virtualbox Setup ***"; echo
+      set -e
+
+      echo "Installing the latest virtualbox"
+      brew update
+
+  docker:
+    usage: Install Docker
+    cmd: |
+      echo; echo "*** Docker Setup ***"; echo
+      set -e
+
+      echo "*** Installing docker-engine..."
+      brew install docker
+
+      echo "*** Installing docker-machine..."
+      brew install docker-machine
+
+      echo "*** Installing docker-compose..."
+      brew install docker-compose
+
+  nfs:
+    usage: Install NFS
+    cmd: |
+      echo; echo "*** NFS Setup ***"; echo
+      set -e
+
+      echo "*** Installing docker-machine-nfs..."
+      curl -s https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh | sudo tee /usr/local/bin/docker-machine-nfs > /dev/null && sudo chmod +x /usr/local/bin/docker-machine-nfs
+
+  machine:
+    usage: Create the "default" Docker machine
+    cmd: |
+      echo; echo "*** Default Docker Machine Setup ***"; echo
+      set -e
+
+      MACHINE_NAME=default
+
+      echo "*** Creating a default docker-machine..."
+      docker-machine create --driver virtualbox $MACHINE_NAME
+
+      echo "*** Setting up the default docker-machine with NFS..."
+      docker-machine-nfs $MACHINE_NAME --shared-folder=$HOME/docker
+
+      echo "*** Environment variables setup and sourcing for the default machine..."
+      DEFAULT_SOURCE="$HOME/.default.docker-machine"
+      docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
+      source $DEFAULT_SOURCE
+      if [ $(grep -E '(AHOY_CMD_PROXY="DOCKER"|AHOY_CMD_PROXY=DOCKER)' $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "export AHOY_CMD_PROXY=\"DOCKER\"" >> $(ahoy rcfile)
+      fi
+      if [ $(grep "source $DEFAULT_SOURCE" $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      fi
+      echo
+      echo "[DONE] Please open a new shell to ensure all new environment settings are sourced"

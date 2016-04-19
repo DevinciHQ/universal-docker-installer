@@ -1,0 +1,136 @@
+ahoyapi: v1
+version: 0.0.0
+commands:
+
+  setup:
+    usage: Setup the Arch Linux development environment
+    cmd: |
+      set -e
+
+      ahoy debian deps
+      ahoy debian virtualbox
+      ahoy debian docker
+      ahoy debian nfs
+      ahoy debian machine
+
+  deps:
+    usage: Install dependencies
+    cmd: |
+      echo; echo "*** Dependencies Setup ***"; echo
+      set -e
+
+      echo "*** Creating the docker share folder at: $HOME/docker ..."
+      share="$HOME/docker"
+      if [ -e "$share" ]; then
+        echo -n "[Warning] $share exits. Are you sure you want to remove $share ? (Y/n) "
+        confirm="?"
+        while [[ $confirm != "y" ]] && [[ $confirm != "n" ]] && [[ $confirm != "" ]]; do
+          read confirm
+          confirm=$(echo $confirm|tr '[:upper:]' '[:lower:]')
+        done
+        if [[ $confirm == "n" ]]; then
+          echo "[Continue] $share is untouched. Press Enter to continue the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+        else
+          echo "[Warning] $share will be removed. Press Enter to remove the folder and continue with the installation or press Ctrl+C / Command+C to abort the installation."
+          read
+          rm -rf $share
+          mkdir $share
+        fi
+      else
+        mkdir $share
+      fi
+
+      echo "*** Installing Perl digest hmac..."
+      sudo apt-get install libdigest-hmac-perl -y
+
+  virtualbox:
+    usage: Install Virtualbox
+    cmd: |
+      echo; echo "*** Virtualbox Setup ***"; echo
+      set -e
+
+      echo "*** Adding virtualbox to apt sources..."
+      echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release --codename -s) contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list > /dev/null && wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo apt-key add -
+      sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/virtualbox.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+
+      echo "*** Virtualbox setup..."
+      sudo apt-get install virtualbox-5.0
+
+  docker:
+    usage: Install Docker
+    cmd: |
+      echo; echo "*** Docker Setup ***"; echo
+      set -e
+
+      MACHINE_MD5_LINUX_64=5558e5d7d003d337eacdc534c505dc5d
+      COMPOSE_MD5_LINUX_64=cb7f2d7f1a45bcff83cfd4669b1dcf53
+      DOCKER_MD5_LINUX_64=4583697764e695dd6d7f68d2834b5443
+
+      echo "*** Adding docker to apt sources..."
+      sudo apt-get install apt-transport-https ca-certificates && sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D && echo "deb https://apt.dockerproject.org/repo ubuntu-$(lsb_release --codename -s) main" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/docker.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+
+      echo "*** Remove legacy lxc-docker if it exists..."
+      sudo apt-get purge lxc-docker
+
+      echo "*** Install linux-image-extra..."
+      sudo apt-get install linux-image-extra-$(uname -r)
+
+      if [ $(cat /etc/*release|grep -i 'ubuntu'|wc -l) -gt 0 ]; then
+        echo "*** Install apparmor on Ubunu..."
+        sudo apt-get install apparmor
+      fi
+
+      echo "*** Installing docker-engine..."
+      sudo apt-get install docker-engine
+
+      echo "*** Installing docker-machine..."
+      echo $MACHINE_MD5_LINUX_64 /usr/local/bin/docker-machine | md5sum -c - || sudo wget -q https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` -O /usr/local/bin/docker-machine && sudo chmod 755 /usr/local/bin/docker-machine && echo $MACHINE_MD5_LINUX_64 /usr/local/bin/docker-machine | md5sum -c -
+
+      echo "*** Installing docker-compose..."
+      echo $COMPOSE_MD5_LINUX_64 /usr/local/bin/docker-compose | md5sum -c - || sudo wget -q https://github.com/docker/compose/releases/download/1.6.0/docker-compose-`uname -s`-`uname -m` -O /usr/local/bin/docker-compose && sudo chmod 755 /usr/local/bin/docker-compose &&  echo $COMPOSE_MD5_LINUX_64 /usr/local/bin/docker-compose | md5sum -c -
+
+  nfs:
+    usage: Install NFS
+    cmd: |
+      echo; echo "*** NFS Setup ***"; echo
+      set -e
+
+      echo "*** Installing NFS server..."
+      echo "[INFO] Selecting \"Install the packe maintainer's version\" is highly recommended for a fresh NFS server installation."
+      echo "Please make sure you read the previous INFO, then press Enter to proceed with the NFS server installation."
+      read
+      sudo apt-get install nfs-kernel-server
+
+      # Note that we needed to modify the docker-machine-nfs script to work with linux. So load the custom version.
+      # See https://github.com/adlogix/docker-machine-nfs/pull/51
+      echo "*** Installing docker-machine-nfs (custom version)..."
+      sudo wget -q https://raw.githubusercontent.com/asghaier/docker-machine-nfs/civic-1817-fixing-linux-bugs/docker-machine-nfs.sh -O /usr/local/bin/docker-machine-nfs && sudo chmod 755 /usr/local/bin/docker-machine-nfs
+
+  machine:
+    usage: Create the "default" Docker machine
+    cmd: |
+      echo; echo "*** Default Docker Machine Setup ***"; echo
+      set -e
+
+      MACHINE_NAME=default
+
+      echo "*** Creating a default docker-machine..."
+      docker-machine create --driver virtualbox $MACHINE_NAME
+
+      echo "*** Setting up the default docker-machine with NFS..."
+      docker-machine-nfs $MACHINE_NAME --nfs-config="(rw,sync,all_squash,anonuid=$(id -u),anongid=$(id -g),no_subtree_check)" --shared-folder=$HOME/docker --force
+
+      echo "*** Environment variables setup and sourcing for the default machine..."
+      DEFAULT_SOURCE="$HOME/.default.docker-machine"
+      docker-machine env $MACHINE_NAME | grep -v "^#" > $DEFAULT_SOURCE
+      source $DEFAULT_SOURCE
+      if [ $(grep -E '(AHOY_CMD_PROXY="DOCKER"|AHOY_CMD_PROXY=DOCKER)' $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "export AHOY_CMD_PROXY=\"DOCKER\"" >> $(ahoy rcfile)
+      fi
+      if [ $(grep "source $DEFAULT_SOURCE" $(ahoy rcfile)|wc -l) -eq 0 ]; then
+        echo "source $DEFAULT_SOURCE" >> $(ahoy rcfile)
+      fi
+      echo
+      echo "[DONE] Please open a new shell to ensure all new environment settings are sourced"

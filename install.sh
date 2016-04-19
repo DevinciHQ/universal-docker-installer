@@ -176,7 +176,7 @@ install_docker_engine() {
       echo "Error: It looks like homebrew isn't installed. Please install that first."
       exit 1
     fi
-    cmd "Updating Homebrew" brew update
+    cmd "Updating Homebrew" brew uninstall --force brew-cask; brew update
 
     if [ ! "$(brew cask)" ]; then
       echo "Error: It looks like homebrew cask isn't installed. As of Dec 2015, it should come with homebrew. Try 'brew update'"
